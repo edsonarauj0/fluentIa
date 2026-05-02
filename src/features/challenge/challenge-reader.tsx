@@ -4,6 +4,7 @@ import type { Challenge, WordInsight } from '@/types/domain'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
+import { Select } from '@/components/ui/select'
 
 type Props = {
   challenge: Challenge
@@ -13,10 +14,12 @@ type Props = {
   isPaused: boolean
   currentCharIndex: number | null
   isAsking: boolean
+  playbackRate: number
   onPlayAudio: () => void
   onPauseAudio: () => void
   onResumeAudio: () => void
   onPlaySelection: () => void
+  onPlaybackRateChange: (value: number) => void
   onSelection: (value: string) => void
   onAskInsight: () => void
 }
@@ -29,10 +32,12 @@ export function ChallengeReader({
   isPaused,
   currentCharIndex,
   isAsking,
+  playbackRate,
   onPlayAudio,
   onPauseAudio,
   onResumeAudio,
   onPlaySelection,
+  onPlaybackRateChange,
   onSelection,
   onAskInsight,
 }: Props) {
@@ -49,7 +54,22 @@ export function ChallengeReader({
               Leia com calma, selecione uma palavra ou frase e pergunte para a IA.
             </CardDescription>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              aria-label="Velocidade da leitura"
+              className="w-[132px] bg-white"
+              value={String(playbackRate)}
+              onChange={(event) => onPlaybackRateChange(Number(event.target.value))}
+            >
+              <option value="0.7">0.7x</option>
+              <option value="0.85">0.85x</option>
+              <option value="1">1.0x</option>
+              <option value="1.15">1.15x</option>
+              <option value="1.5">1.5x</option>
+              <option value="2">2.0x</option>
+              <option value="2.5">2.5x</option>
+              <option value="3">3.0x</option>
+            </Select>
             <Button variant="secondary" onClick={onPlayAudio}>
               <Volume2 className="h-4 w-4" />
               {isPlaying ? 'Reiniciar leitura' : 'Ouvir texto'}

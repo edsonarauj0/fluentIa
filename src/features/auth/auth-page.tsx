@@ -11,12 +11,16 @@ import { Label } from '@/components/ui/label'
 import { useAuth } from '@/features/auth/auth-context'
 
 const authSchema = z.object({
-  name: z.string().min(2, 'Informe seu nome completo.').optional(),
+  name: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().min(2, 'Informe seu nome completo.').optional(),
+  ),
   email: z.string().email('Digite um e-mail valido.'),
   password: z.string().min(6, 'A senha precisa ter ao menos 6 caracteres.'),
 })
 
-type AuthFormData = z.infer<typeof authSchema>
+type AuthFormInput = z.input<typeof authSchema>
+type AuthFormData = z.output<typeof authSchema>
 
 export function AuthPage() {
   const [tab, setTab] = useState<'login' | 'register'>('login')
@@ -27,7 +31,7 @@ export function AuthPage() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<AuthFormData>({
+  } = useForm<AuthFormInput, undefined, AuthFormData>({
     resolver: zodResolver(authSchema),
     defaultValues: { email: '', password: '', name: '' },
   })

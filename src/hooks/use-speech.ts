@@ -20,7 +20,7 @@ export function useSpeech() {
     }
   }, [])
 
-  function speak(text: string) {
+  function speak(text: string, rate = 0.9) {
     if (!('speechSynthesis' in window)) return
 
     const tokens = tokenizeSpeechText(text).filter((token) => !token.isWhitespace)
@@ -37,7 +37,7 @@ export function useSpeech() {
     tokens.forEach((token, index) => {
       const utterance = new SpeechSynthesisUtterance(token.value)
       utterance.lang = 'en-US'
-      utterance.rate = 0.9
+      utterance.rate = rate
       utterance.pitch = 1
       utterance.onstart = () => {
         if (playbackId !== playbackIdRef.current) return
@@ -84,13 +84,13 @@ export function useSpeech() {
     setCurrentCharIndex(null)
   }
 
-  function speakSelection(text: string) {
+  function speakSelection(text: string, rate = 0.82) {
     if (!('speechSynthesis' in window) || !text.trim()) return
 
     stop()
     const utterance = new SpeechSynthesisUtterance(text.trim())
     utterance.lang = 'en-US'
-    utterance.rate = 0.82
+    utterance.rate = rate
     utterance.pitch = 1
     utterance.onstart = () => setSpeaking(true)
     utterance.onend = () => {

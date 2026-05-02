@@ -16,6 +16,7 @@ export function DashboardPage() {
   const [challenge, setChallenge] = useState<Challenge | null>(null)
   const [selectedText, setSelectedText] = useState('')
   const [insight, setInsight] = useState<WordInsight | null>(null)
+  const [playbackRate, setPlaybackRate] = useState(0.85)
   const [isLoadingChallenge, setIsLoadingChallenge] = useState(true)
   const [isAsking, setIsAsking] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
@@ -122,10 +123,12 @@ export function DashboardPage() {
           isPaused={paused}
           currentCharIndex={currentCharIndex}
           isAsking={isAsking}
-          onPlayAudio={() => speak(challenge.text)}
+          playbackRate={playbackRate}
+          onPlayAudio={() => speak(challenge.text, playbackRate)}
           onPauseAudio={pause}
           onResumeAudio={resume}
-          onPlaySelection={() => speakSelection(selectedText)}
+          onPlaySelection={() => speakSelection(selectedText, Math.max(0.65, playbackRate - 0.05))}
+          onPlaybackRateChange={setPlaybackRate}
           onSelection={setSelectedText}
           onAskInsight={() => void askInsight()}
         />

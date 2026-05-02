@@ -66,6 +66,23 @@ export function AppShell({ children }: Props) {
             </Button>
           </div>
         </div>
+        <div className="mx-auto flex max-w-7xl gap-2 px-4 pb-4 md:hidden sm:px-6">
+          {links.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
+                cn(
+                  'flex flex-1 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-sm font-medium transition',
+                  isActive ? 'bg-slate-900 text-white border-slate-900' : 'text-slate-700',
+                )
+              }
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </NavLink>
+          ))}
+        </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">{children}</main>
