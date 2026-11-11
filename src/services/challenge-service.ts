@@ -1,7 +1,13 @@
 import { aiService } from '@/services/ai-service'
 import { readStorage, writeStorage } from '@/lib/storage'
 import { calculateStreak } from '@/lib/streak-utils'
-import type { Challenge, ChallengePreferencesSnapshot, Difficulty, UserProfile } from '@/types/domain'
+import type {
+  Challenge,
+  ChallengePreferencesSnapshot,
+  Difficulty,
+  StudySubject,
+  UserProfile,
+} from '@/types/domain'
 import { getFirestoreDb } from '@/services/firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 
@@ -10,8 +16,13 @@ const CHALLENGES_KEY = 'sem-mico.challenges'
 type StoredChallenges = Record<string, Challenge>
 
 export const challengeService = {
-  async getDailyChallenge(user: UserProfile, force = false) {
-    const key = `${user.id}:${new Date().toISOString().slice(0, 10)}`
+  async getDailyChallenge(
+    user: UserProfile,
+    force = false,
+    activeSubject?: StudySubject | null,
+  ) {
+    const subjectPart = activeSubject ? `:${activeSubject.id}:L${activeSubject.currentLessonNumber}` : ''
+    const key = `${user.id}:${new Date().toISOString().slice(0, 10)}${subjectPart}`
     const db = getFirestoreDb()
 
     if (db) {
@@ -27,11 +38,14 @@ export const challengeService = {
           title: data.title,
           text: data.text,
           reflectionQuestion: data.reflectionQuestion,
+          subjectId: data.subjectId,
+          lessonNumber: data.lessonNumber,
+          mentorTip: data.mentorTip,
           preferencesSnapshot: data.preferencesSnapshot,
           source: data.source,
           completed: data.completed,
         }
-        if (isChallengeCompatible(challenge, user)) {
+        if (isChallengeCompatible(challenge, user, activeSubject)) {
           return { challenge, mode: challenge.source }
         }
       }
@@ -39,19 +53,24 @@ export const challengeService = {
 
     const stored = readStorage<StoredChallenges>(CHALLENGES_KEY, {})
 
-    if (!force && stored[key] && isChallengeCompatible(stored[key], user)) {
+    if (!force && stored[key] && isChallengeCompatible(stored[key], user, activeSubject)) {
       return { challenge: stored[key], mode: stored[key].source }
     }
 
-    const generated = await aiService.generateChallenge(user.preferences)
+    const generated = activeSubject
+      ? await aiService.generateChallenge(user.preferences, activeSubject)
+      : await aiService.generateChallenge(user.preferences)
     const challenge: Challenge = {
       id: key,
       date: new Date().toISOString(),
-      category: user.preferences.category,
+      category: activeSubject?.title ?? user.preferences.category,
       title: generated.title,
       text: generated.text,
       reflectionQuestion: generated.reflectionQuestion,
-      preferencesSnapshot: buildPreferencesSnapshot(user),
+      subjectId: activeSubject?.id,
+      lessonNumber: activeSubject?.currentLessonNumber,
+      mentorTip: generated.mentorTip,
+      preferencesSnapshot: buildPreferencesSnapshot(user, activeSubject),
       source: generated.mode,
       completed: user.completedChallengeIds.includes(key),
     }
@@ -65,8 +84,15 @@ export const challengeService = {
     return { challenge, mode: generated.mode }
   },
 
-  async explainSelection(challenge: Challenge, selection: string, level: Difficulty) {
-    return aiService.explainSelection(challenge, selection, level)
+  async explainSelection(
+    challenge: Challenge,
+    selection: string,
+    level: Difficulty,
+    activeSubject?: StudySubject | null,
+  ) {
+    return activeSubject
+      ? aiService.explainSelection(challenge, selection, level, activeSubject)
+      : aiService.explainSelection(challenge, selection, level)
   },
 
   async completeChallenge(user: UserProfile, challengeId: string): Promise<UserProfile> {
@@ -95,22 +121,31 @@ export const challengeService = {
   },
 }
 
-function buildPreferencesSnapshot(user: UserProfile): ChallengePreferencesSnapshot {
+function buildPreferencesSnapshot(
+  user: UserProfile,
+  activeSubject?: StudySubject | null,
+): ChallengePreferencesSnapshot {
   return {
     category: user.preferences.category,
-    level: user.preferences.level,
+    level: activeSubject?.level ?? user.preferences.level,
     maxCharacters: user.preferences.maxCharacters,
+    ...(activeSubject ? { subjectId: activeSubject.id } : {}),
   }
 }
 
-function isChallengeCompatible(challenge: Challenge, user: UserProfile) {
+function isChallengeCompatible(
+  challenge: Challenge,
+  user: UserProfile,
+  activeSubject?: StudySubject | null,
+) {
   const snapshot = challenge.preferencesSnapshot
   if (!snapshot) return false
 
-  const current = buildPreferencesSnapshot(user)
+  const current = buildPreferencesSnapshot(user, activeSubject)
   return (
     snapshot.category === current.category &&
     snapshot.level === current.level &&
-    snapshot.maxCharacters === current.maxCharacters
+    snapshot.maxCharacters === current.maxCharacters &&
+    snapshot.subjectId === current.subjectId
   )
 }

@@ -5,6 +5,7 @@ import { Mascot } from '@/components/mascot/mascot'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useGamificationStore } from '@/stores/gamification-store'
+import { useSubjectsStore } from '@/stores/subjects-store'
 import { challengeService } from '@/services/challenge-service'
 import { useSpeech } from '@/hooks/use-speech'
 import type { Challenge, Difficulty, WordInsight } from '@/types/domain'
@@ -40,6 +41,16 @@ export function TutorSheet({
     setMascotState,
     incrementMicoSuperado,
   } = useGamificationStore()
+
+  const activeSubject = useSubjectsStore((state) =>
+    state.subjects.find((s) => s.status === 'active') ?? state.subjects[0],
+  )
+  const quickSuggestions =
+    activeSubject?.keywords?.slice(0, 4) ?? [
+      'gentle light',
+      'wakes up slowly',
+      'breathing with attention',
+    ]
 
   const defaultSeedTerm = tutorInitialTerm || selectedText
   const [customQuery, setCustomQuery] = useState<string | null>(null)
@@ -77,7 +88,12 @@ export function TutorSheet({
     setMascotState('thinking')
 
     const activeChallenge = challenge ?? DEFAULT_FALLBACK_CHALLENGE
-    const result = await challengeService.explainSelection(activeChallenge, term, level)
+    const result = await challengeService.explainSelection(
+      activeChallenge,
+      term,
+      level,
+      activeSubject,
+    )
 
     setLocalInsight(result)
     setIsAsking(false)
@@ -193,8 +209,8 @@ export function TutorSheet({
 
               {/* Quick Suggestions */}
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold text-muted-foreground">Sugestões rápidas:</span>
-                {['gentle light', 'wakes up slowly', 'breathing with attention'].map((suggestion) => (
+                <span className="text-xs font-bold text-muted-foreground">Sugestões da área:</span>
+                {quickSuggestions.map((suggestion) => (
                   <button
                     key={suggestion}
                     type="button"

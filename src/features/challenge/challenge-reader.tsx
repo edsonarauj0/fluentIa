@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { CheckCircle2, Languages, Pause, Play, Sparkles, Volume2, VolumeX } from 'lucide-react'
+import { CheckCircle2, GraduationCap, Languages, Pause, Play, Sparkles, Volume2, VolumeX } from 'lucide-react'
 import type { Challenge, WordInsight } from '@/types/domain'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import {
 
 type Props = {
   challenge: Challenge
+  expertPersona?: string
   insight: WordInsight | null
   selectedText: string
   isPlaying: boolean
@@ -34,6 +35,7 @@ type Props = {
 
 export function ChallengeReader({
   challenge,
+  expertPersona,
   insight,
   selectedText,
   isPlaying,
@@ -58,12 +60,20 @@ export function ChallengeReader({
       <Card className="space-y-6 border-brand-100 bg-white shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
+          <div className="flex flex-wrap items-center gap-2">
             <Badge className="border-brand-200 bg-brand-50 text-brand-600">{challenge.category}</Badge>
-            <CardTitle className="mt-3 font-extrabold text-navy-900">{challenge.title}</CardTitle>
-            <CardDescription className="mt-1">
-              Leia com calma, selecione uma palavra ou frase e pergunte para o Mico.
-            </CardDescription>
+            {expertPersona ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#FFF1CF] px-3 py-1 text-xs font-extrabold text-[#8A5200]">
+                <GraduationCap className="h-3.5 w-3.5" />
+                {expertPersona}
+              </span>
+            ) : null}
           </div>
+          <CardTitle className="mt-3 font-extrabold text-navy-900">{challenge.title}</CardTitle>
+          <CardDescription className="mt-1">
+            Leia com calma, selecione uma palavra ou frase e pergunte para o Mico.
+          </CardDescription>
+        </div>
           <div className="flex flex-wrap items-center gap-2">
             <Select
               value={String(playbackRate)}
@@ -145,6 +155,13 @@ export function ChallengeReader({
             {isAsking ? 'Consultando...' : 'Perguntar para IA'}
           </Button>
         </div>
+
+        {challenge.mentorTip ? (
+          <div className="flex items-start gap-3 rounded-2xl border border-[#FFE3A3] bg-[#FFF1CF]/75 p-4 text-sm text-[#0B1437]">
+            <GraduationCap className="mt-0.5 h-5 w-5 shrink-0 text-[#8A5200]" />
+            <p className="font-semibold leading-relaxed">{challenge.mentorTip}</p>
+          </div>
+        ) : null}
 
         {challenge.reflectionQuestion ? (
           <div className="flex flex-col gap-3 rounded-2xl bg-[#FFF3D6]/70 p-4 sm:flex-row sm:items-center sm:justify-between">

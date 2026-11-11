@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   BookOpen,
   CheckCircle2,
+  ChevronDown,
   Flame,
   Headphones,
   Layers,
@@ -18,12 +20,15 @@ import { TutorSheet } from '@/components/tutor/tutor-sheet'
 import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
 import { ChallengeReader } from '@/features/challenge/challenge-reader'
+import { SubjectInlineIcon } from '@/features/subjects/subject-icon'
+import { SubjectSelectorSheet } from '@/features/subjects/subject-selector-sheet'
 import { celebrate } from '@/lib/celebrate'
 import { defaultPreferences, difficultyLabels } from '@/lib/constants'
 import { buildWeekProgress } from '@/lib/streak-utils'
 import { cn } from '@/lib/utils'
 import { challengeService } from '@/services/challenge-service'
 import { useGamificationStore } from '@/stores/gamification-store'
+import { useSubjectsStore } from '@/stores/subjects-store'
 import { useSpeech } from '@/hooks/use-speech'
 import type { Challenge, MissionStepId, WordInsight } from '@/types/domain'
 
@@ -39,6 +44,7 @@ const MISSION_STEPS: {
 
 export function DashboardPage() {
   const { user, updateUser } = useAuth()
+  const navigate = useNavigate()
   const [challenge, setChallenge] = useState<Challenge | null>(null)
   const [selectedText, setSelectedText] = useState('')
   const [insight, setInsight] = useState<WordInsight | null>(null)
@@ -67,14 +73,34 @@ export function DashboardPage() {
     openTutor,
   } = useGamificationStore()
 
+  const {
+    subjects,
+    openSelector,
+    advanceSubjectProgress,
+  } = useSubjectsStore()
+
+  const activeSubject = useMemo(
+    () => subjects.find((item) => item.status === 'active') ?? subjects[0],
+    [subjects],
+  )
+
+  const todayLesson = useMemo(
+    () =>
+      activeSubject?.lessons.find((l) => l.status === 'today') ??
+      activeSubject?.lessons[0],
+    [activeSubject],
+  )
+
   const preferences = useMemo(() => user?.preferences ?? defaultPreferences, [user])
   const firstName = useMemo(() => {
     const rawName = user?.name?.trim() || 'Edson'
     return rawName.split(' ')[0]
   }, [user?.name])
 
-  const levelLabel = difficultyLabels[preferences.level]
+  const effectiveLevel = activeSubject?.level ?? preferences.level
+  const levelLabel = difficultyLabels[effectiveLevel]
   const displayStreak = user?.streak ?? streak
+  const durationMinutes = activeSubject?.durationMinutes ?? 8
 
   const weekDays = useMemo(
     () => buildWeekProgress(user?.completedChallengeIds ?? [], user?.lastCompletedAt ?? null),
@@ -86,7 +112,13 @@ export function DashboardPage() {
 
     void loadChallenge()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, preferences.category, preferences.maxCharacters, preferences.level])
+  }, [
+    user?.id,
+    preferences.category,
+    preferences.maxCharacters,
+    preferences.level,
+    activeSubject?.id,
+  ])
 
   async function loadChallenge(force = false) {
     if (!user) return
@@ -95,8 +127,24 @@ export function DashboardPage() {
     setStatus(null)
     setMascotState('thinking')
 
-    const response = await challengeService.getDailyChallenge(user, force)
-    setChallenge(response.challenge)
+    const response = await challengeService.getDailyChallenge(user, force, activeSubject)
+
+    if (!force && activeSubject && todayLesson?.readingText && response.mode === 'fallback') {
+      setChallenge({
+        ...response.challenge,
+        category: activeSubject.title,
+        title: todayLesson.title,
+        text: todayLesson.readingText,
+        reflectionQuestion:
+          todayLesson.reflectionQuestion ?? response.challenge.reflectionQuestion,
+        mentorTip: todayLesson.mentorTip ?? response.challenge.mentorTip,
+        subjectId: activeSubject.id,
+        lessonNumber: activeSubject.currentLessonNumber,
+      })
+    } else {
+      setChallenge(response.challenge)
+    }
+
     setIsLoadingChallenge(false)
     setInsight(null)
     setSelectedText('')
@@ -141,7 +189,12 @@ export function DashboardPage() {
 
     setIsAsking(true)
     setMascotState('thinking')
-    const nextInsight = await challengeService.explainSelection(challenge, selectedText, preferences.level)
+    const nextInsight = await challengeService.explainSelection(
+      challenge,
+      selectedText,
+      effectiveLevel,
+      activeSubject,
+    )
     setInsight(nextInsight)
     setIsAsking(false)
     setMascotState('celebrating')
@@ -168,6 +221,9 @@ export function DashboardPage() {
     if (!user || !challenge) return
 
     markAllStepsCompleted()
+    if (activeSubject) {
+      advanceSubjectProgress(activeSubject.id)
+    }
     const nextUser = await challengeService.completeChallenge(user, challenge.id)
     await updateUser(nextUser)
     celebrate()
@@ -176,38 +232,71 @@ export function DashboardPage() {
   }
 
   const missionProgressPercent = Math.round((completedSteps.length / 3) * 100)
+  const scenarioSummary =
+    activeSubject && activeSubject.chatScenarios.length > 0
+      ? `${activeSubject.chatScenarios.map((s) => s.title).join(', ')}. Texto ou voz.`
+      : 'Café, aeroporto, entrevista. Texto ou voz.'
 
   return (
-    <div className="space-y-8">
-      {/* Top Greeting & Gamification Pills */}
-      <section className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+    <div className="space-y-7">
+      {/* Top Subject Chip & Gamification Bar */}
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Active Subject Selector Chip */}
+          {activeSubject ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={openSelector}
+                aria-label="Selecionar assunto"
+                className="inline-flex items-center gap-2 rounded-full border-2 border-[#B9CFFF] bg-[#DCE7FF] px-3.5 py-1.5 text-[13px] font-extrabold text-[#1B4FE0] transition-colors hover:bg-[#B9CFFF]/60"
+              >
+                <SubjectInlineIcon icon={activeSubject.icon} />
+                <span>{activeSubject.title}</span>
+                <ChevronDown className="h-4 w-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void navigate(`/subjects/${activeSubject.id}`)}
+                className="hidden rounded-full border border-brand-200 bg-white px-3 py-1.5 text-xs font-extrabold text-[#55627A] hover:bg-brand-50 sm:inline-flex"
+              >
+                {activeSubject.totalLessons
+                  ? `Lição ${activeSubject.currentLessonNumber} de ${activeSubject.totalLessons}`
+                  : `Lição ${activeSubject.currentLessonNumber}`}
+              </button>
+            </div>
+          ) : null}
+
+          {/* Desktop Gamification Badges */}
+          <div className="hidden items-center gap-2.5 md:flex">
+            <div className="flex items-center gap-2 rounded-full border border-brand-100 bg-white px-4 py-2 text-xs font-extrabold text-navy-900 shadow-2xs">
+              <Flame className="h-4 w-4 fill-streak/20 text-streak" />
+              <span>{displayStreak} dias</span>
+            </div>
+            <div className="flex items-center gap-2 rounded-full border border-brand-100 bg-white px-4 py-2 text-xs font-extrabold text-navy-900 shadow-2xs">
+              <Zap className="h-4 w-4 fill-xp/20 text-xp" />
+              <span>{xp} XP</span>
+            </div>
+            <div className="flex items-center gap-2 rounded-full border border-brand-100 bg-white px-4 py-2 text-xs font-extrabold text-navy-900 shadow-2xs">
+              <span>
+                Lv. {level} · {levelLabel}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Greeting */}
         <div>
           <h1 className="font-display text-3xl font-extrabold tracking-tight text-navy-900 md:text-[32px]">
             Bora, {firstName}?
           </h1>
           <p className="mt-1 hidden text-sm text-muted-foreground md:block">
-            Sua missão de hoje leva uns 8 minutos.
+            Sua missão de hoje leva uns {durationMinutes} minutos.
           </p>
           <p className="mt-1 text-sm text-muted-foreground md:hidden">
-            Missão de hoje: uns 8 minutos.
+            Missão de hoje: uns {durationMinutes} minutos.
           </p>
-        </div>
-
-        {/* Desktop Gamification Badges */}
-        <div className="hidden items-center gap-2.5 md:flex">
-          <div className="flex items-center gap-2 rounded-full border border-brand-100 bg-white px-4 py-2 text-xs font-extrabold text-navy-900 shadow-2xs">
-            <Flame className="h-4 w-4 fill-streak/20 text-streak" />
-            <span>{displayStreak} dias</span>
-          </div>
-          <div className="flex items-center gap-2 rounded-full border border-brand-100 bg-white px-4 py-2 text-xs font-extrabold text-navy-900 shadow-2xs">
-            <Zap className="h-4 w-4 fill-xp/20 text-xp" />
-            <span>{xp} XP</span>
-          </div>
-          <div className="flex items-center gap-2 rounded-full border border-brand-100 bg-white px-4 py-2 text-xs font-extrabold text-navy-900 shadow-2xs">
-            <span>
-              Lv. {level} · {levelLabel}
-            </span>
-          </div>
         </div>
       </section>
 
@@ -235,13 +324,13 @@ export function DashboardPage() {
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0 space-y-2">
                 <h2 className="font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
-                  {challenge?.title ?? 'Quiet Morning'}
+                  {challenge?.title ?? todayLesson?.title ?? 'Quiet Morning'}
                 </h2>
                 <p className="hidden text-sm font-medium text-brand-100/85 sm:block">
-                  {preferences.category} · {levelLabel} · até {preferences.maxCharacters} caracteres
+                  {activeSubject?.title ?? preferences.category} · {levelLabel} · até {preferences.maxCharacters} caracteres
                 </p>
                 <p className="text-sm font-medium text-brand-100/85 sm:hidden">
-                  {preferences.category} · {levelLabel}
+                  {activeSubject?.title ?? preferences.category} · {levelLabel}
                 </p>
               </div>
 
@@ -414,7 +503,12 @@ export function DashboardPage() {
           <motion.button
             type="button"
             whileTap={{ scale: 0.98 }}
-            onClick={() => openTutor('Conversation practice: ordering coffee at the airport')}
+            onClick={() =>
+              openTutor(
+                activeSubject?.chatScenarios[0]?.title ??
+                  'Conversation practice: ordering coffee at the airport',
+              )
+            }
             className="flex flex-col items-start rounded-[24px] border border-brand-100 bg-white p-5 text-left shadow-card hover:border-brand-200"
           >
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-speaking/12 text-speaking">
@@ -424,14 +518,14 @@ export function DashboardPage() {
               Praticar conversa
             </h3>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              Café, aeroporto, entrevista. Texto ou voz.
+              {scenarioSummary}
             </p>
           </motion.button>
 
           <motion.button
             type="button"
             whileTap={{ scale: 0.98 }}
-            onClick={() => openTutor('gentle light')}
+            onClick={() => openTutor(activeSubject?.keywords[0] ?? 'gentle light')}
             className="flex flex-col items-start rounded-[24px] border border-brand-100 bg-white p-5 text-left shadow-card hover:border-brand-200"
           >
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-vocab/12 text-vocab">
@@ -470,7 +564,7 @@ export function DashboardPage() {
           <motion.button
             type="button"
             whileTap={{ scale: 0.97 }}
-            onClick={() => openTutor('Conversation practice')}
+            onClick={() => openTutor(activeSubject?.chatScenarios[0]?.title ?? 'Conversation practice')}
             className="flex flex-col items-start rounded-[24px] border border-brand-100 bg-white p-4 text-left shadow-card"
           >
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-speaking/12 text-speaking">
@@ -487,7 +581,7 @@ export function DashboardPage() {
           <motion.button
             type="button"
             whileTap={{ scale: 0.97 }}
-            onClick={() => openTutor('gentle light')}
+            onClick={() => openTutor(activeSubject?.keywords[0] ?? 'gentle light')}
             className="flex flex-col items-start rounded-[24px] border border-brand-100 bg-white p-4 text-left shadow-card"
           >
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-vocab/12 text-vocab">
@@ -535,6 +629,7 @@ export function DashboardPage() {
         ) : (
           <ChallengeReader
             challenge={challenge}
+            expertPersona={activeSubject?.expertPersona}
             insight={insight}
             selectedText={selectedText}
             isPlaying={speaking}
@@ -582,10 +677,13 @@ export function DashboardPage() {
       {/* Floating Tutor Bottom Sheet */}
       <TutorSheet
         challenge={challenge}
-        level={preferences.level}
+        level={effectiveLevel}
         externalInsight={insight}
         selectedText={selectedText}
       />
+
+      {/* Subject Selector Sheet (also available when DashboardPage is rendered standalone) */}
+      <SubjectSelectorSheet />
     </div>
   )
 }

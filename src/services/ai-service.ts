@@ -1,7 +1,21 @@
-import type { Challenge, Difficulty, StudyPreferences, WordInsight } from '@/types/domain'
+import type {
+  Challenge,
+  Difficulty,
+  StudyPreferences,
+  StudySubject,
+  SubjectIconName,
+  SubjectLesson,
+  SubjectScenario,
+  SubjectTone,
+  SubjectTrackType,
+  WordInsight,
+} from '@/types/domain'
+import { buildDraftFromPrompt } from '@/stores/subjects-store'
 
-const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
+const GEMINI_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+] as const
 
 type GeminiResponse = {
   candidates?: Array<{
@@ -11,90 +25,414 @@ type GeminiResponse = {
   }>
 }
 
-export const aiService = {
-  async generateChallenge(preferences: StudyPreferences) {
-    const prompt = [
-      'You are creating a daily English reading challenge for a Brazilian learner.',
-      `Requested category in Portuguese: ${preferences.category}.`,
-      `Difficulty: ${preferences.level}.`,
-      `The text body must be no longer than ${preferences.maxCharacters} characters, including spaces.`,
-      'Write natural English only for the title and text body.',
-      'Interpret the category and generate the text in that style or genre.',
-      'Adapt vocabulary, sentence length, and complexity to the requested level.',
-      'Keep the text engaging and coherent inside the requested category.',
-      'Before answering, verify the text body length and shorten it if needed.',
-      'Return valid JSON only with keys: title, text, reflectionQuestion.',
-      'The reflectionQuestion must be in Portuguese and help the learner think about the text.',
-      'Do not add markdown fences or extra commentary.',
-    ].join(' ')
+export type SubjectBlueprintParams = {
+  prompt: string
+  level: Difficulty
+  durationMinutes: number
+  trackType: SubjectTrackType
+  tone: SubjectTone
+}
 
-    const result = await callGemini(prompt)
+type RawBlueprintResponse = {
+  title: string
+  summary: string
+  expertPersona: string
+  icon: SubjectIconName
+  lessons: Array<{
+    number: number
+    title: string
+    readingText: string
+    reflectionQuestion: string
+    mentorTip: string
+  }>
+  chatScenarios: Array<{
+    title: string
+    subtitle: string
+  }>
+  keywords: string[]
+  totalKeywordsPool?: number
+}
+
+/**
+ * Monta a System Instruction que afunila a IA gratuita do Google (Gemini)
+ * para agir como um professor e mentor ultraexperiente na área exata do aluno.
+ */
+export function buildExpertSystemInstruction(contextPrompt?: string, expertPersona?: string, tone?: string): string {
+  return [
+    'Você é o Mico Expert, um professor de inglês de elite e mentor sênior com mais de 20 anos de experiência prática internacional exatamente na área descrita pelo aluno.',
+    contextPrompt ? `Contexto específico do aluno: "${contextPrompt}".` : '',
+    expertPersona ? `Sua persona especialista: ${expertPersona}.` : '',
+    tone ? `Tom de comunicação exigido no contexto: ${tone}.` : '',
+    'Sua missão pedagógica:',
+    '1. Afunilar 100% do conteúdo para o nicho real do aluno (nunca use frases genéricas de cursinho; use jargões reais, situações autênticas e vocabulário que nativos da área realmente usam).',
+    '2. Ensinar brasileiros a falarem com naturalidade, apontando armadilhas comuns ("micos", falsos cognatos, traduções literais ou vícios de pronúncia) que brasileiros cometem nesse cenário específico.',
+    '3. Ser didático, encorajador ("errar aqui é parte do jogo") e direto ao ponto, como um mentor sênior preparando alguém para brilhar na vida real.',
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
+export const aiService = {
+  async generateChallenge(
+    preferences: StudyPreferences,
+    activeSubject?: StudySubject | null,
+  ): Promise<{
+    title: string
+    text: string
+    reflectionQuestion: string
+    mentorTip?: string
+    mode: 'gemini' | 'fallback'
+  }> {
+    const todayLesson = activeSubject?.lessons.find((l) => l.status === 'today')
+    const systemInstruction = buildExpertSystemInstruction(
+      activeSubject?.prompt ?? `Interesse em ${preferences.category}`,
+      activeSubject?.expertPersona,
+      activeSubject?.tone,
+    )
+
+    const prompt = [
+      'Crie uma lição prática de leitura em inglês para um estudante brasileiro.',
+      activeSubject
+        ? `Assunto ativo: "${activeSubject.title}". Contexto detalhado do aluno: "${activeSubject.prompt}".`
+        : `Categoria solicitada: ${preferences.category}.`,
+      todayLesson ? `Foco específico da lição de hoje (Lição ${todayLesson.number}): "${todayLesson.title}".` : '',
+      activeSubject?.keywords?.length
+        ? `Incorpore naturalmente algumas destas palavras-chave da área no texto: ${activeSubject.keywords.slice(0, 5).join(', ')}.`
+        : '',
+      `Nível de inglês do aluno: ${activeSubject?.level ?? preferences.level}.`,
+      `O corpo do texto em inglês (text) deve ter no máximo ${preferences.maxCharacters} caracteres (incluindo espaços).`,
+      'Escreva apenas inglês autêntico e natural da área para o "title" e o "text".',
+      'Adapte a complexidade gramatical ao nível pedido, mas mantenha o vocabulário profissional/autêntico do nicho.',
+      'A "reflectionQuestion" deve ser em português, fazendo o aluno pensar em como aplicaria aquilo na situação real dele.',
+      'A "mentorTip" deve ser uma dica curta em português (1 a 2 frases) de professor veterano da área sobre como soar natural e não pagar mico nesse tópico.',
+      'Retorne APENAS JSON válido com as chaves: title, text, reflectionQuestion, mentorTip.',
+    ]
+      .filter(Boolean)
+      .join(' ')
+
+    const result = await callGemini(prompt, systemInstruction)
 
     if (!result) {
-      return buildFallbackChallenge(preferences)
+      return buildFallbackChallenge(preferences, activeSubject)
     }
 
     try {
-      const parsed = extractJson<{ title: string; text: string; reflectionQuestion: string }>(result)
+      const parsed = extractJson<{
+        title: string
+        text: string
+        reflectionQuestion: string
+        mentorTip?: string
+      }>(result)
       const sanitizedText = normalizeChallengeText(parsed.text, preferences.maxCharacters)
       return {
         title: parsed.title.trim(),
         text: sanitizedText,
         reflectionQuestion: parsed.reflectionQuestion.trim(),
+        mentorTip: parsed.mentorTip?.trim(),
         mode: 'gemini' as const,
       }
     } catch {
-      return buildFallbackChallenge(preferences)
+      return buildFallbackChallenge(preferences, activeSubject)
     }
   },
 
-  async explainSelection(challenge: Challenge, selection: string, level: Difficulty): Promise<WordInsight> {
-    const prompt = [
-      'You are an English tutor for Brazilian learners.',
-      `Explain the term "${selection}" taken from this text: ${challenge.text}`,
-      `Difficulty level: ${level}.`,
-      'Return valid JSON only with keys: term, translation, meaning, example, synonyms, pronunciation, context.',
-      'Keep the translation and explanation in Portuguese and example in English.',
-      'Do not add markdown fences or extra commentary.',
-    ].join(' ')
+  async explainSelection(
+    challenge: Challenge,
+    selection: string,
+    level: Difficulty,
+    activeSubject?: StudySubject | null,
+  ): Promise<WordInsight> {
+    const systemInstruction = buildExpertSystemInstruction(
+      activeSubject?.prompt ?? challenge.category,
+      activeSubject?.expertPersona,
+      activeSubject?.tone,
+    )
 
-    const result = await callGemini(prompt)
+    const prompt = [
+      `Explique o termo ou expressão "${selection}" retirado deste texto da área: "${challenge.text}".`,
+      activeSubject
+        ? `O aluno está treinando para: "${activeSubject.prompt}" (Assunto: ${activeSubject.title}).`
+        : '',
+      `Nível do aluno: ${level}.`,
+      'Aja como um professor mega experiente nessa área específica:',
+      '- Em "translation", dê a tradução exata usada pelos profissionais/nativos nesse contexto.',
+      '- Em "meaning", explique em português como esse termo funciona na prática da área e qual "mico" (erro comum de brasileiros) evitar.',
+      '- Em "example", crie uma frase em inglês ultra-realista do contexto do aluno usando o termo.',
+      '- Em "pronunciation", escreva uma dica fonética amigável para brasileiros (ex: como soa a sílaba tônica).',
+      'Retorne APENAS JSON válido com as chaves: term, translation, meaning, example, synonyms (array de strings), pronunciation, context.',
+    ]
+      .filter(Boolean)
+      .join(' ')
+
+    const result = await callGemini(prompt, systemInstruction)
 
     if (!result) {
-      return buildFallbackInsight(selection, challenge.text)
+      return buildFallbackInsight(selection, challenge.text, activeSubject)
     }
 
     try {
       return extractJson<WordInsight>(result)
     } catch {
-      return buildFallbackInsight(selection, challenge.text)
+      return buildFallbackInsight(selection, challenge.text, activeSubject)
     }
+  },
+
+  /**
+   * Usa a IA gratuita do Google (Gemini) para criar toda a estrutura do assunto
+   * (título, persona do professor especialista, trilha de lições, cenários de chat e palavras-chave)
+   * afunilando 100% no contexto descrito pelo aluno.
+   */
+  async generateSubjectBlueprint(
+    params: SubjectBlueprintParams,
+  ): Promise<{
+    draft: Omit<StudySubject, 'id' | 'createdAt' | 'status'>
+    mode: 'gemini' | 'fallback'
+  }> {
+    const fallbackDraft = buildDraftFromPrompt(params.prompt, {
+      level: params.level,
+      durationMinutes: params.durationMinutes,
+      trackType: params.trackType,
+      tone: params.tone,
+    })
+
+    const systemInstruction = buildExpertSystemInstruction(params.prompt, undefined, params.tone)
+    const totalLessons = params.trackType === 'goal' ? 14 : null
+
+    const prompt = [
+      `O aluno descreveu o seguinte objetivo de estudo em inglês: "${params.prompt}".`,
+      `Nível escolhido: ${params.level}. Duração diária: ${params.durationMinutes} minutos. Tom: ${params.tone}.`,
+      `Tipo de trilha: ${params.trackType === 'goal' ? 'Trilha com meta de 14 lições' : 'Trilha contínua'}.`,
+      'Como um professor mega experiente e mentor sênior exatamente nessa área, monte o plano completo e afunilado para esse aluno.',
+      'Retorne APENAS JSON válido com o seguinte formato:',
+      '{',
+      '  "title": "Título curto e específico do assunto em português (máx 35 caracteres)",',
+      '  "summary": "Resumo motivador em português (1 frase) explicando o foco prático da trilha",',
+      '  "expertPersona": "Cargo/perfil do professor especialista desta trilha em português (ex: Senior Staff Engineer & Tech Recruiter nos EUA)",',
+      '  "icon": "briefcase" | "plane" | "coffee" | "message" | "sparkles",',
+      '  "lessons": [',
+      '    // Gere as 4 primeiras lições progressivas e ultra-específicas da área (numbers 1, 2, 3, 4):',
+      '    {',
+      '      "number": 1,',
+      '      "title": "Título específico da lição em português",',
+      '      "readingText": "Texto prático e autêntico em inglês (250 a 420 caracteres) simulando uma situação real desse nicho",',
+      '      "reflectionQuestion": "Pergunta prática em português que faz o aluno formular uma resposta pessoal na área",',
+      '      "mentorTip": "Dica de ouro em português do professor especialista sobre como não pagar mico nessa situação"',
+      '    }',
+      '  ],',
+      '  "chatScenarios": [',
+      '    // 3 cenários de roleplay com interlocutores reais dessa área:',
+      '    { "title": "Papel do interlocutor em português", "subtitle": "O que o aluno vai praticar nessa conversa" }',
+      '  ],',
+      '  "keywords": ["8 termos ou expressões em inglês indispensáveis nesse nicho específico"],',
+      '  "totalKeywordsPool": 30',
+      '}',
+    ].join('\n')
+
+    const result = await callGemini(prompt, systemInstruction)
+
+    if (!result) {
+      return { draft: fallbackDraft, mode: 'fallback' }
+    }
+
+    try {
+      const parsed = extractJson<RawBlueprintResponse>(result)
+      const validIcons: SubjectIconName[] = ['briefcase', 'plane', 'coffee', 'message', 'sparkles']
+      const icon: SubjectIconName = validIcons.includes(parsed.icon)
+        ? parsed.icon
+        : fallbackDraft.icon
+
+      const lessons: SubjectLesson[] =
+        Array.isArray(parsed.lessons) && parsed.lessons.length > 0
+          ? parsed.lessons.map((lesson, idx) => ({
+              number: idx + 1,
+              title: lesson.title?.trim() || `Lição ${idx + 1}`,
+              subtitle:
+                idx === 0
+                  ? `Hoje · ${params.durationMinutes} min · ler, ouvir, quiz`
+                  : 'Pronta',
+              status: idx === 0 ? ('today' as const) : ('ready' as const),
+              durationMinutes: params.durationMinutes,
+              readingText: lesson.readingText?.trim(),
+              reflectionQuestion: lesson.reflectionQuestion?.trim(),
+              mentorTip: lesson.mentorTip?.trim(),
+            }))
+          : fallbackDraft.lessons
+
+      const chatScenarios: SubjectScenario[] =
+        Array.isArray(parsed.chatScenarios) && parsed.chatScenarios.length > 0
+          ? parsed.chatScenarios.slice(0, 4).map((sc, idx) => ({
+              id: `ai-sc-${idx + 1}`,
+              title: sc.title?.trim() || `Cenário ${idx + 1}`,
+              subtitle: sc.subtitle?.trim() || 'Prática guiada em contexto',
+            }))
+          : fallbackDraft.chatScenarios
+
+      const keywords =
+        Array.isArray(parsed.keywords) && parsed.keywords.length > 0
+          ? parsed.keywords.slice(0, 10).map((k) => k.trim())
+          : fallbackDraft.keywords
+
+      return {
+        draft: {
+          ...fallbackDraft,
+          title: parsed.title?.trim() || fallbackDraft.title,
+          summary: parsed.summary?.trim() || fallbackDraft.summary,
+          expertPersona: parsed.expertPersona?.trim() || fallbackDraft.expertPersona,
+          icon,
+          totalLessons,
+          lessons,
+          chatScenarios,
+          keywords,
+          totalKeywordsPool: parsed.totalKeywordsPool ?? 30,
+        },
+        mode: 'gemini',
+      }
+    } catch {
+      return { draft: fallbackDraft, mode: 'fallback' }
+    }
+  },
+
+  /**
+   * Regenera as próximas lições da trilha de um assunto usando a IA do Google
+   * com base no progresso atual e nas configurações do assunto.
+   */
+  async regenerateSubjectSyllabus(subject: StudySubject): Promise<{
+    lessons: SubjectLesson[]
+    mode: 'gemini' | 'fallback'
+  }> {
+    const systemInstruction = buildExpertSystemInstruction(
+      subject.prompt,
+      subject.expertPersona,
+      subject.tone,
+    )
+
+    const currentNo = subject.currentLessonNumber
+    const prompt = [
+      `O aluno está estudando o assunto "${subject.title}" (Contexto: "${subject.prompt}").`,
+      `Nível atual: ${subject.level}. Duração: ${subject.durationMinutes} min. Tom: ${subject.tone}.`,
+      `Ele está na lição ${currentNo}. Gere a lição ${currentNo} (hoje) e as próximas 2 lições (${currentNo + 1} e ${currentNo + 2}) com foco ultra-específico na área.`,
+      'Retorne APENAS JSON válido no formato:',
+      '{',
+      '  "lessons": [',
+      '    {',
+      `      "number": ${currentNo},`,
+      '      "title": "Título específico da lição em português",',
+      '      "readingText": "Texto autêntico em inglês (250 a 420 caracteres) da área",',
+      '      "reflectionQuestion": "Pergunta de reflexão prática em português",',
+      '      "mentorTip": "Dica do professor especialista em português"',
+      '    }',
+      '  ]',
+      '}',
+    ].join('\n')
+
+    const result = await callGemini(prompt, systemInstruction)
+
+    if (result) {
+      try {
+        const parsed = extractJson<{
+          lessons: Array<{
+            number: number
+            title: string
+            readingText: string
+            reflectionQuestion: string
+            mentorTip?: string
+          }>
+        }>(result)
+
+        if (Array.isArray(parsed.lessons) && parsed.lessons.length > 0) {
+          const completed = subject.lessons.filter((l) => l.status === 'completed')
+          const generatedUpcoming: SubjectLesson[] = parsed.lessons.map((item, idx) => ({
+            number: currentNo + idx,
+            title: item.title.trim(),
+            subtitle:
+              idx === 0
+                ? `Hoje · ${subject.durationMinutes} min · ler, ouvir, quiz`
+                : 'Pronta',
+            status: idx === 0 ? ('today' as const) : ('ready' as const),
+            durationMinutes: subject.durationMinutes,
+            readingText: item.readingText?.trim(),
+            reflectionQuestion: item.reflectionQuestion?.trim(),
+            mentorTip: item.mentorTip?.trim(),
+          }))
+
+          return {
+            lessons: [...completed, ...generatedUpcoming],
+            mode: 'gemini',
+          }
+        }
+      } catch {
+        // Fallback below
+      }
+    }
+
+    // Fallback: atualiza as lições mantendo o contexto do assunto
+    const updatedLessons = subject.lessons.map((lesson) => {
+      if (lesson.number === currentNo) {
+        return {
+          ...lesson,
+          subtitle: `Hoje · ${subject.durationMinutes} min · ler, ouvir, quiz`,
+          status: 'today' as const,
+        }
+      }
+      if (lesson.number === currentNo + 1) {
+        return {
+          ...lesson,
+          title: `${subject.title}: Simulação prática de situações reais`,
+          status: 'ready' as const,
+          subtitle: 'Pronta',
+        }
+      }
+      if (lesson.number === currentNo + 2) {
+        return {
+          ...lesson,
+          title: `${subject.title}: Dominando perguntas difíceis sem mico`,
+          status: 'ready' as const,
+          subtitle: 'Pronta',
+        }
+      }
+      return lesson
+    })
+
+    return { lessons: updatedLessons, mode: 'fallback' }
   },
 }
 
-async function callGemini(prompt: string): Promise<string | null> {
+async function callGemini(prompt: string, systemInstruction?: string): Promise<string | null> {
   const apiKey = globalThis.__SEM_MICO_ENV__?.VITE_GEMINI_API_KEY
   if (!apiKey) return null
 
-  try {
-    const response = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.8,
-        },
-        contents: [{ parts: [{ text: prompt }] }],
-      }),
-    })
+  for (const model of GEMINI_MODELS) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(systemInstruction
+            ? {
+                systemInstruction: {
+                  parts: [{ text: systemInstruction }],
+                },
+              }
+            : {}),
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.75,
+          },
+          contents: [{ parts: [{ text: prompt }] }],
+        }),
+      })
 
-    if (!response.ok) return null
-    const data = (await response.json()) as GeminiResponse
-    return data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? null
-  } catch {
-    return null
+      if (!response.ok) continue
+      const data = (await response.json()) as GeminiResponse
+      const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('') ?? null
+      if (text) return text
+    } catch {
+      continue
+    }
   }
+
+  return null
 }
 
 function extractJson<T>(payload: string): T {
@@ -114,7 +452,28 @@ export function normalizeChallengeText(text: string, maxCharacters: number) {
   return (lastSpace > 0 ? sliced.slice(0, lastSpace) : sliced).trim()
 }
 
-export function buildFallbackChallenge(preferences: StudyPreferences) {
+export function buildFallbackChallenge(
+  preferences: StudyPreferences,
+  activeSubject?: StudySubject | null,
+) {
+  if (activeSubject) {
+    const todayLesson =
+      activeSubject.lessons.find((l) => l.status === 'today') ?? activeSubject.lessons[0]
+    if (todayLesson?.readingText) {
+      return {
+        title: todayLesson.title,
+        text: normalizeChallengeText(todayLesson.readingText, preferences.maxCharacters),
+        reflectionQuestion:
+          todayLesson.reflectionQuestion ??
+          `Como você aplicaria o vocabulário de "${activeSubject.title}" hoje?`,
+        mentorTip:
+          todayLesson.mentorTip ??
+          `Dica do professor (${activeSubject.expertPersona ?? 'Especialista na área'}): foque em frases curtas e diretas usando as palavras-chave da trilha.`,
+        mode: 'fallback' as const,
+      }
+    }
+  }
+
   const library: Record<string, { title: string; text: string; reflectionQuestion: string }> = {
     Noticias: {
       title: 'A Small Habit With Big Impact',
@@ -157,18 +516,27 @@ export function buildFallbackChallenge(preferences: StudyPreferences) {
   return {
     ...fallback,
     text: normalizeChallengeText(fallback.text, preferences.maxCharacters),
+    mentorTip: undefined as string | undefined,
     mode: 'fallback' as const,
   }
 }
 
-export function buildFallbackInsight(selection: string, text: string): WordInsight {
+export function buildFallbackInsight(
+  selection: string,
+  text: string,
+  activeSubject?: StudySubject | null,
+): WordInsight {
+  const areaContext = activeSubject
+    ? `no contexto de "${activeSubject.title}" (${activeSubject.expertPersona ?? 'Mentor Especialista'})`
+    : 'no contexto atual'
+
   return {
     term: selection,
-    translation: 'Traducao aproximada baseada no contexto atual.',
-    meaning: `No texto, "${selection}" ajuda a construir a ideia principal da frase e pode ser entendido observando as palavras ao redor.`,
-    example: `Example: I can use "${selection}" when I describe a real situation in English.`,
-    synonyms: ['related word', 'close meaning'],
-    pronunciation: 'Leia em voz alta com foco nas silabas mais fortes.',
+    translation: `Tradução aplicada ${areaContext}.`,
+    meaning: `Na área de ${activeSubject?.title ?? 'estudo'}, "${selection}" é usado por profissionais para transmitir precisão e naturalidade. Evite traduzir ao pé da letra.`,
+    example: `Example: In a real ${activeSubject?.title?.toLowerCase() ?? 'conversation'} scenario, I use "${selection}" to sound clear and confident.`,
+    synonyms: ['domain expression', 'natural alternative'],
+    pronunciation: 'Leia em voz alta destacando a sílaba tônica com ritmo natural.',
     context: `Contexto do texto: ${text.slice(0, 120)}...`,
   }
 }

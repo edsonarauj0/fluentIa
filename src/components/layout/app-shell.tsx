@@ -2,7 +2,9 @@ import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
+  ChevronDown,
   Flame,
+  FolderKanban,
   Home,
   Layers,
   LogOut,
@@ -13,10 +15,13 @@ import {
 import { motion } from 'motion/react'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/auth-context'
+import { SubjectInlineIcon } from '@/features/subjects/subject-icon'
+import { SubjectSelectorSheet } from '@/features/subjects/subject-selector-sheet'
 import { BRAND_ASSETS } from '@/lib/assets'
 import { difficultyLabels } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { useGamificationStore } from '@/stores/gamification-store'
+import { useSubjectsStore } from '@/stores/subjects-store'
 
 type Props = {
   children: ReactNode
@@ -35,6 +40,11 @@ export function AppShell({ children }: Props) {
     openTutor,
   } = useGamificationStore()
 
+  const { subjects, openSelector } = useSubjectsStore()
+  const activeSubject =
+    subjects.find((item) => item.status === 'active') ??
+    subjects[0]
+
   useEffect(() => {
     const todayKey = user ? `${user.id}:${new Date().toISOString().slice(0, 10)}` : ''
     const isDoneToday = Boolean(user && todayKey && user.completedChallengeIds.includes(todayKey))
@@ -43,7 +53,7 @@ export function AppShell({ children }: Props) {
 
   const displayName = user?.name || 'Edson'
   const userInitial = displayName.charAt(0).toUpperCase()
-  const levelLabel = difficultyLabels[user?.preferences.level ?? 'beginner']
+  const levelLabel = difficultyLabels[activeSubject?.level ?? user?.preferences.level ?? 'beginner']
   const displayStreak = user?.streak ?? streak
 
   function handleVocabClick() {
@@ -64,7 +74,7 @@ export function AppShell({ children }: Props) {
   return (
     <div className="flex min-h-dvh bg-background text-foreground">
       {/* Desktop Left Sidebar */}
-      <aside className="hidden md:sticky md:top-0 md:flex md:h-dvh md:w-[248px] md:shrink-0 md:flex-col md:justify-between md:border-r md:border-brand-100 md:bg-white md:px-4 md:py-6">
+      <aside className="hidden md:sticky md:top-0 md:flex md:h-dvh md:w-[254px] md:shrink-0 md:flex-col md:justify-between md:border-r md:border-brand-100 md:bg-white md:px-4 md:py-6">
         <div>
           {/* Brand Logo */}
           <Link to="/" className="flex items-center gap-3 px-2">
@@ -83,8 +93,21 @@ export function AppShell({ children }: Props) {
             </div>
           </Link>
 
+          {/* Active Subject Pill in Sidebar */}
+          {activeSubject ? (
+            <button
+              type="button"
+              onClick={openSelector}
+              className="mt-5 flex w-full items-center gap-2 rounded-2xl border-2 border-[#B9CFFF] bg-[#DCE7FF]/70 px-3 py-2.5 text-left text-xs font-black text-[#1B4FE0] transition-colors hover:bg-[#DCE7FF]"
+            >
+              <SubjectInlineIcon icon={activeSubject.icon} />
+              <span className="flex-1 truncate">{activeSubject.title}</span>
+              <ChevronDown className="h-4 w-4 shrink-0" />
+            </button>
+          ) : null}
+
           {/* Navigation Menu */}
-          <nav aria-label="Menu principal" className="mt-7 space-y-1.5">
+          <nav aria-label="Menu principal" className="mt-5 space-y-1.5">
             <NavLink
               to="/"
               end
@@ -99,6 +122,21 @@ export function AppShell({ children }: Props) {
             >
               <Home className="h-5 w-5" />
               <span>Início</span>
+            </NavLink>
+
+            <NavLink
+              to="/subjects"
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition-colors',
+                  isActive
+                    ? 'bg-brand-100 text-brand-600'
+                    : 'text-navy-900/80 hover:bg-brand-50 hover:text-navy-900',
+                )
+              }
+            >
+              <FolderKanban className="h-5 w-5" />
+              <span className="flex-1">Meus assuntos</span>
             </NavLink>
 
             <button
@@ -149,7 +187,7 @@ export function AppShell({ children }: Props) {
           </div>
 
           <div className="flex items-center justify-between gap-2 px-1 pt-1">
-            <Link to="/profile" className="flex items-center gap-3 min-w-0">
+            <Link to="/profile" className="flex min-w-0 items-center gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-extrabold text-white">
                 {userInitial}
               </div>
@@ -173,23 +211,35 @@ export function AppShell({ children }: Props) {
       </aside>
 
       {/* Main Column */}
-      <div className="flex flex-1 flex-col min-w-0 pb-24 md:pb-10">
+      <div className="flex min-w-0 flex-1 flex-col pb-24 md:pb-10">
         {/* Mobile Top Header */}
-        <header className="flex items-center justify-between px-5 pt-4 pb-2 safe-top md:hidden">
-          <Link to="/" className="flex items-center gap-2">
-            <img
-              src={BRAND_ASSETS.mobileWordmark}
-              alt="Sem Mico"
-              className="h-6 w-auto object-contain"
-            />
-          </Link>
+        <header className="flex items-center justify-between gap-2 px-5 pt-4 pb-2 safe-top md:hidden">
+          {location.pathname === '/' && activeSubject ? (
+            <button
+              type="button"
+              onClick={openSelector}
+              className="flex min-w-0 items-center gap-2 rounded-full border-2 border-[#B9CFFF] bg-[#DCE7FF] px-3.5 py-1.5 text-[13px] font-extrabold text-[#1B4FE0]"
+            >
+              <SubjectInlineIcon icon={activeSubject.icon} />
+              <span className="truncate">{activeSubject.title}</span>
+              <ChevronDown className="h-4 w-4 shrink-0" />
+            </button>
+          ) : (
+            <Link to="/" className="flex items-center gap-2">
+              <img
+                src={BRAND_ASSETS.mobileWordmark}
+                alt="Sem Mico"
+                className="h-6 w-auto object-contain"
+              />
+            </Link>
+          )}
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-full border border-brand-100 bg-white px-3.5 py-1.5 text-xs font-extrabold text-navy-900 shadow-2xs">
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="flex items-center gap-1.5 rounded-full border-2 border-[#DCE7FF] bg-white px-3.5 py-1.5 text-xs font-extrabold text-[#0B1437]">
               <Flame className="h-4 w-4 fill-streak/20 text-streak" />
-              <span>{displayStreak}</span>
+              <span>{displayStreak} dias</span>
             </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-brand-100 bg-white px-3.5 py-1.5 text-xs font-extrabold text-navy-900 shadow-2xs">
+            <div className="hidden items-center gap-1.5 rounded-full border-2 border-[#DCE7FF] bg-white px-3.5 py-1.5 text-xs font-extrabold text-[#0B1437] xs:flex">
               <Zap className="h-4 w-4 fill-xp/20 text-xp" />
               <span>{xp} XP</span>
             </div>
@@ -304,6 +354,9 @@ export function AppShell({ children }: Props) {
           )}
         </NavLink>
       </nav>
+
+      {/* Global Subject Selector Sheet */}
+      <SubjectSelectorSheet />
     </div>
   )
 }

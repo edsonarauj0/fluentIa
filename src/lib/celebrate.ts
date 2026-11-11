@@ -13,6 +13,10 @@ export function triggerHaptic(durationMs = 10) {
 export function celebrate() {
   triggerHaptic(15)
 
+  if (typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent)) {
+    return
+  }
+
   try {
     void confetti({
       particleCount: 120,

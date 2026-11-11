@@ -1,5 +1,6 @@
 import {
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail as firebaseSendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   updateProfile as updateFirebaseProfile,
@@ -121,6 +122,13 @@ export const authService = {
     const nextUsers = users.map((user) => (user.id === profile.id ? { ...user, ...profile } : user))
     writeStorage(USERS_KEY, nextUsers)
     return profile
+  },
+
+  async sendPasswordResetEmail(email: string) {
+    const auth = getFirebaseAuth()
+    if (auth) {
+      await firebaseSendPasswordResetEmail(auth, email)
+    }
   },
 }
 
