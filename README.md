@@ -1,4 +1,4 @@
-# FluentIA
+# Sem Mico
 
 Aplicacao web para estudo diario de ingles com desafios de leitura, audio e interacao com IA.
 
@@ -110,7 +110,7 @@ Colecoes principais:
 
 1. Envie este projeto para um repositorio no GitHub.
 2. No painel da Vercel, clique em `Add New > Project`.
-3. Importe o repositorio da FluentIA.
+3. Importe o repositorio do Sem Mico.
 4. Confirme as configuracoes:
    - Framework Preset: `Vite`
    - Build Command: `npm run build`

@@ -1,10 +1,11 @@
 import { aiService } from '@/services/ai-service'
 import { readStorage, writeStorage } from '@/lib/storage'
-import type { Challenge, Difficulty, UserProfile } from '@/types/domain'
+import { calculateStreak } from '@/lib/streak-utils'
+import type { Challenge, ChallengePreferencesSnapshot, Difficulty, UserProfile } from '@/types/domain'
 import { getFirestoreDb } from '@/services/firebase'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 
-const CHALLENGES_KEY = 'fluentia.challenges'
+const CHALLENGES_KEY = 'sem-mico.challenges'
 
 type StoredChallenges = Record<string, Challenge>
 
@@ -18,15 +19,27 @@ export const challengeService = {
       const snapshot = await getDoc(ref)
 
       if (!force && snapshot.exists()) {
-        const data = snapshot.data() as Challenge & { userId: string }
-        const { userId: _userId, ...challenge } = data
-        return { challenge, mode: challenge.source }
+        const data = snapshot.data() as Challenge & { userId?: string }
+        const challenge: Challenge = {
+          id: data.id,
+          date: data.date,
+          category: data.category,
+          title: data.title,
+          text: data.text,
+          reflectionQuestion: data.reflectionQuestion,
+          preferencesSnapshot: data.preferencesSnapshot,
+          source: data.source,
+          completed: data.completed,
+        }
+        if (isChallengeCompatible(challenge, user)) {
+          return { challenge, mode: challenge.source }
+        }
       }
     }
 
     const stored = readStorage<StoredChallenges>(CHALLENGES_KEY, {})
 
-    if (!force && stored[key]) {
+    if (!force && stored[key] && isChallengeCompatible(stored[key], user)) {
       return { challenge: stored[key], mode: stored[key].source }
     }
 
@@ -38,6 +51,7 @@ export const challengeService = {
       title: generated.title,
       text: generated.text,
       reflectionQuestion: generated.reflectionQuestion,
+      preferencesSnapshot: buildPreferencesSnapshot(user),
       source: generated.mode,
       completed: user.completedChallengeIds.includes(key),
     }
@@ -60,16 +74,13 @@ export const challengeService = {
       return user
     }
 
-    const today = new Date().toISOString().slice(0, 10)
-    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
-    const lastCompletedAt = user.lastCompletedAt?.slice(0, 10) ?? null
+    const streak = calculateStreak(user.streak, user.lastCompletedAt)
+    const nextXp = (user.xp ?? 0) + 45
 
-    const streak =
-      lastCompletedAt === today ? user.streak : lastCompletedAt === yesterday ? user.streak + 1 : 1
-
-    const nextUser = {
+    const nextUser: UserProfile = {
       ...user,
       streak,
+      xp: nextXp,
       completedChallengeIds: [...user.completedChallengeIds, challengeId],
       lastCompletedAt: new Date().toISOString(),
     }
@@ -82,4 +93,24 @@ export const challengeService = {
 
     return nextUser
   },
+}
+
+function buildPreferencesSnapshot(user: UserProfile): ChallengePreferencesSnapshot {
+  return {
+    category: user.preferences.category,
+    level: user.preferences.level,
+    maxCharacters: user.preferences.maxCharacters,
+  }
+}
+
+function isChallengeCompatible(challenge: Challenge, user: UserProfile) {
+  const snapshot = challenge.preferencesSnapshot
+  if (!snapshot) return false
+
+  const current = buildPreferencesSnapshot(user)
+  return (
+    snapshot.category === current.category &&
+    snapshot.level === current.level &&
+    snapshot.maxCharacters === current.maxCharacters
+  )
 }

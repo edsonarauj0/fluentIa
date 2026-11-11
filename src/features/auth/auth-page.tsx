@@ -57,10 +57,10 @@ export function AuthPage() {
 
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.1fr_0.9fr]">
-      <section className="relative hidden overflow-hidden bg-slate-950 px-10 py-14 text-white lg:flex lg:flex-col lg:justify-between">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(163,230,53,0.2),_transparent_35%),radial-gradient(circle_at_bottom_left,_rgba(45,212,191,0.22),_transparent_28%)]" />
+      <section className="relative hidden overflow-hidden bg-navy-900 px-10 py-14 text-white lg:flex lg:flex-col lg:justify-between">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(37,99,255,0.35),_transparent_35%),radial-gradient(circle_at_bottom_left,_rgba(34,211,238,0.25),_transparent_28%)]" />
         <div className="relative">
-          <p className="font-display text-2xl">FluentIA</p>
+          <p className="font-display text-2xl">Sem Mico</p>
           <p className="mt-4 max-w-md text-lg leading-8 text-slate-300">
             Transforme leitura, escuta e curiosidade em um ritual diario de ingles com IA.
           </p>
@@ -72,14 +72,14 @@ export function AuthPage() {
             'Selecione palavras e receba explicacoes da IA',
           ].map((item) => (
             <div key={item} className="flex items-start gap-3 rounded-3xl border border-white/10 bg-white/5 p-5">
-              <Sparkles className="mt-1 h-5 w-5 text-lime-300" />
+              <Sparkles className="mt-1 h-5 w-5 text-xp" />
               <p className="text-slate-200">{item}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="flex items-center justify-center bg-[linear-gradient(180deg,_#ffffff_0%,_#f7fee7_100%)] px-4 py-10 sm:px-6">
+      <section className="flex items-center justify-center bg-[linear-gradient(180deg,_#ffffff_0%,_#F2F6FF_100%)] px-4 py-10 sm:px-6">
         <Card className="w-full max-w-xl border-slate-200">
           <div className="mb-8 flex items-center justify-between gap-4">
             <div>
@@ -90,7 +90,7 @@ export function AuthPage() {
                   : 'Firebase conectado e pronto para autenticar usuarios.'}
               </CardDescription>
             </div>
-            <div className="rounded-2xl bg-lime-100 p-3 text-lime-700">
+            <div className="rounded-2xl bg-brand-100 p-3 text-brand-700">
               {tab === 'login' ? <KeyRound className="h-6 w-6" /> : <BookMarked className="h-6 w-6" />}
             </div>
           </div>
@@ -142,7 +142,7 @@ export function AuthPage() {
 
             {error && <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
 
-            <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
+            <Button variant="mico" type="submit" size="lg" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? 'Entrando...' : tab === 'login' ? 'Entrar' : 'Criar conta'}
             </Button>
           </form>

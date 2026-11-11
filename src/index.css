@@ -1,33 +1,188 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap');
 @import "tailwindcss";
 
+/* Dark mode por classe (<html class="dark">) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================
+   TOKENS DA MARCA (geram utilitários do Tailwind)
+   ============================================================ */
 @theme {
-  --font-sans: "Manrope", sans-serif;
-  --font-display: "Space Grotesk", sans-serif;
+  /* ---------- Fontes ---------- */
+  --font-display: "Nunito Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Nunito Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-reading: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+
+  /* ---------- Azul da marca (arara-azul) ---------- */
+  --color-brand-50:  #F2F6FF;
+  --color-brand-100: #DCE7FF;
+  --color-brand-200: #B9CFFF;
+  --color-brand-300: #8DB0FF;
+  --color-brand-400: #5C8DFF;
+  --color-brand-500: #2563FF; /* principal */
+  --color-brand-600: #1B4FE0; /* hover */
+  --color-brand-700: #1238A8; /* sombra chunky */
+  --color-brand-800: #0F2C82;
+  --color-brand-900: #0B1F5C;
+
+  /* ---------- Navy (fundos escuros) ---------- */
+  --color-navy-700: #1A2866;
+  --color-navy-800: #121E4F;
+  --color-navy-900: #0B1437;
+  --color-navy-950: #070C24;
+
+  /* ---------- Fauna brasileira ---------- */
+  --color-mico:        #FFB020; /* Mico-leão-dourado (protagonista) */
+  --color-mico-light:  #FFE3A3;
+  --color-mico-dark:   #C77F00;
+  --color-boto:        #F25CA8; /* Boto-cor-de-rosa */
+  --color-boto-light:  #FFD6EA;
+  --color-capivara:    #B8865B; /* Capivara */
+  --color-capivara-light: #F1E2D3;
+  --color-mata:        #22C55E; /* Folhagem */
+  --color-mata-light:  #D5F5E0;
+
+  /* ---------- Gamificação ---------- */
+  --color-xp:      #22D3EE; /* barra de XP */
+  --color-streak:  #FF8A1F; /* chama */
+  --color-reward:  #FFC83D; /* moedas, conquistas */
+
+  /* ---------- Feedback ---------- */
+  --color-success: #22C55E;
+  --color-success-dark: #15803D;
+  --color-danger:  #F0445B;
+  --color-danger-dark:  #B91C3A;
+  --color-warning: #FF8A1F; /* "mico": erro suave, sem vermelho agressivo */
+
+  /* ---------- Habilidades ---------- */
+  --color-reading:   #2563FF;
+  --color-listening: #22D3EE;
+  --color-speaking:  #7C5CFF;
+  --color-vocab:     #F25CA8;
+
+  /* ---------- Raios ---------- */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+  --radius-2xl: 2.25rem;
+
+  /* ---------- Sombras "chunky" (botão que afunda) ---------- */
+  --shadow-chunky:         0 4px 0 var(--color-brand-700);
+  --shadow-chunky-mico:    0 4px 0 var(--color-mico-dark);
+  --shadow-chunky-success: 0 4px 0 var(--color-success-dark);
+  --shadow-chunky-danger:  0 4px 0 var(--color-danger-dark);
+  --shadow-chunky-neutral: 0 4px 0 #CBD5E1;
+  --shadow-card: 0 2px 0 var(--color-brand-100);
+  --shadow-soft: 0 12px 32px rgb(37 99 255 / 0.15);
+
+  /* ---------- Animações ---------- */
+  --animate-pop: pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-wiggle: wiggle 0.5s ease-in-out;
+  --animate-float: float 3s ease-in-out infinite;
+
+  @keyframes pop {
+    0%   { transform: scale(0.8); opacity: 0; }
+    100% { transform: scale(1);   opacity: 1; }
+  }
+  @keyframes wiggle {
+    0%, 100% { transform: rotate(0deg); }
+    25%      { transform: rotate(-6deg); }
+    75%      { transform: rotate(6deg); }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
+  }
 }
 
+/* ============================================================
+   TOKENS SEMÂNTICOS (mudam entre claro e escuro)
+   Use: bg-background, text-foreground, border-border, etc.
+   ============================================================ */
 :root {
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --background: var(--color-brand-50);
+  --foreground: #0F172A;
+  --surface: #FFFFFF;
+  --surface-muted: #F8FAFF;
+  --border: var(--color-brand-100);
+  --muted-foreground: #64748B;
+  --primary: var(--color-brand-500);
+  --primary-foreground: #FFFFFF;
+  --ring: var(--color-brand-200);
 }
 
-* {
-  box-sizing: border-box;
+.dark {
+  --background: var(--color-navy-950);
+  --foreground: #EAF0FF;
+  --surface: var(--color-navy-800);
+  --surface-muted: var(--color-navy-900);
+  --border: var(--color-navy-700);
+  --muted-foreground: #94A3C8;
+  --primary: var(--color-brand-400);
+  --primary-foreground: var(--color-navy-950);
+  --ring: var(--color-brand-700);
 }
 
-html {
-  min-width: 320px;
-  scroll-behavior: smooth;
+/* Expõe os tokens semânticos como utilitários */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-ring: var(--ring);
 }
 
-body {
-  margin: 0;
-  min-height: 100vh;
-  font-family: var(--font-sans);
+/* ============================================================
+   BASE
+   ============================================================ */
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    min-height: 100dvh;
+  }
+
+  /* Foco visível acessível */
+  :focus-visible {
+    @apply outline-none ring-4 ring-ring;
+  }
+
+  /* Evita zoom do iOS ao focar inputs */
+  input, select, textarea {
+    font-size: 16px;
+  }
 }
 
-#root {
-  min-height: 100vh;
+/* ============================================================
+   UTILITÁRIOS CUSTOM
+   ============================================================ */
+@utility safe-top    { padding-top: env(safe-area-inset-top, 0px); }
+@utility safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+@utility pressable {
+  transition: transform 100ms, box-shadow 100ms;
+  &:active {
+    transform: translateY(4px);
+    box-shadow: none;
+  }
+}
+
+/* Reduz movimento para quem prefere */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

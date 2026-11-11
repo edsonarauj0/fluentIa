@@ -10,8 +10,8 @@ import { readStorage, writeStorage } from '@/lib/storage'
 import { getFirebaseAuth, getFirestoreDb } from '@/services/firebase'
 import type { AuthCredentials, AuthMode, UserProfile } from '@/types/domain'
 
-const USERS_KEY = 'fluentia.users'
-const SESSION_KEY = 'fluentia.session'
+const USERS_KEY = 'sem-mico.users'
+const SESSION_KEY = 'sem-mico.session'
 
 type SessionResult = {
   user: UserProfile | null

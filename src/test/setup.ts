@@ -22,5 +22,5 @@ if (!globalThis.Response) {
 Object.assign(globalThis, {
   TextEncoder,
   TextDecoder,
-  __FLUENTIA_ENV__: {},
+  __SEM_MICO_ENV__: {},
 })

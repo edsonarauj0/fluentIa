@@ -1,6 +1,13 @@
 import type { Difficulty, StudyPreferences, ThemeName } from '@/types/domain'
 
-export const categories = ['News', 'Chronicles', 'Poems', 'Stories', 'Short tales', 'Custom topic']
+export const categories = [
+  'Poema',
+  'Conto',
+  'Historia',
+  'Historias de terror',
+  'Cronicas',
+  'Noticias',
+]
 
 export const difficulties: { value: Difficulty; label: string }[] = [
   { value: 'beginner', label: 'Iniciante' },

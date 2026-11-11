@@ -4,26 +4,30 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400 disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center gap-2 rounded-lg font-extrabold uppercase tracking-wide ' +
+    'transition-all duration-100 select-none ' +
+    'active:translate-y-1 active:shadow-none ' +
+    'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-200 ' +
+    'disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
-        default: 'bg-slate-900 text-white hover:bg-slate-800',
-        secondary: 'bg-lime-300 text-slate-950 hover:bg-lime-200',
-        outline: 'border border-slate-200 bg-white hover:bg-slate-50',
-        ghost: 'hover:bg-white/80',
+        primary:   'bg-brand-500 text-white shadow-chunky hover:bg-brand-600',
+        secondary: 'bg-white text-brand-600 border-2 border-brand-100 shadow-chunky-neutral hover:bg-brand-50',
+        outline:   'bg-white text-navy-900 border-2 border-brand-100 shadow-chunky-neutral hover:bg-brand-50',
+        success:   'bg-success text-white shadow-chunky-success hover:brightness-105',
+        danger:    'bg-danger text-white shadow-chunky-danger hover:brightness-105',
+        ghost:     'bg-transparent text-brand-600 shadow-none active:translate-y-0 hover:bg-brand-100',
+        mico:      'bg-mico text-navy-900 shadow-chunky-mico hover:brightness-105',
       },
       size: {
-        default: 'h-11 px-5',
-        sm: 'h-9 rounded-xl px-4',
-        lg: 'h-12 rounded-2xl px-6 text-base',
-        icon: 'h-11 w-11',
+        sm: 'h-9 px-4 text-xs',
+        md: 'h-11 px-5 text-sm',
+        lg: 'h-14 px-7 text-base',
+        icon: 'h-10 w-10 p-0',
       },
     },
-    defaultVariants: {
-      variant: 'default',
-      size: 'default',
-    },
+    defaultVariants: { variant: 'primary', size: 'md' },
   },
 )
 
@@ -33,11 +37,7 @@ export interface ButtonProps
   asChild?: boolean
 }
 
-export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : 'button'
-    return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />
-  },
-)
-
-Button.displayName = 'Button'
+export function Button({ className, variant, size, asChild, ...props }: ButtonProps) {
+  const Comp = asChild ? Slot : 'button'
+  return <Comp className={cn(buttonVariants({ variant, size }), className)} {...props} />
+}

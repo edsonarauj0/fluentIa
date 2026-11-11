@@ -5,7 +5,7 @@ import { AuthProvider } from '@/features/auth/auth-context'
 
 beforeEach(() => {
   localStorage.setItem(
-    'fluentia.users',
+    'sem-mico.users',
     JSON.stringify([
       {
         id: 'demo-user',
@@ -13,7 +13,7 @@ beforeEach(() => {
         email: 'edson@example.com',
         password: '123456',
         preferences: {
-          category: 'News',
+          category: 'Poema',
           level: 'beginner',
           theme: 'sunrise',
           maxCharacters: 450,
@@ -24,7 +24,7 @@ beforeEach(() => {
       },
     ]),
   )
-  localStorage.setItem('fluentia.session', JSON.stringify('demo-user'))
+  localStorage.setItem('sem-mico.session', JSON.stringify('demo-user'))
 })
 
 afterEach(() => {
@@ -32,7 +32,7 @@ afterEach(() => {
 })
 
 describe('DashboardPage', () => {
-  it('renders challenge area for authenticated users', async () => {
+  it('renders challenge area and gamified home structure for authenticated users', async () => {
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -41,6 +41,11 @@ describe('DashboardPage', () => {
       </MemoryRouter>,
     )
 
+    expect(await screen.findByText(/Bora, Edson\?/i)).toBeInTheDocument()
+    expect(await screen.findByText(/MISSÃO DO DIA/i)).toBeInTheDocument()
+    expect(await screen.findByText(/COMEÇAR MISSÃO/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Meta de hoje/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Quer ir mais fundo\?/i)).toBeInTheDocument()
     expect(await screen.findByText(/Seu desafio de hoje/i)).toBeInTheDocument()
     expect(await screen.findByText(/Marcar como concluido/i)).toBeInTheDocument()
   })

@@ -15,12 +15,14 @@ export const aiService = {
   async generateChallenge(preferences: StudyPreferences) {
     const prompt = [
       'You are creating a daily English reading challenge for a Brazilian learner.',
-      `Category: ${preferences.category}.`,
+      `Requested category in Portuguese: ${preferences.category}.`,
       `Difficulty: ${preferences.level}.`,
-      `Target maximum characters for the text body: ${preferences.maxCharacters}.`,
+      `The text body must be no longer than ${preferences.maxCharacters} characters, including spaces.`,
       'Write natural English only for the title and text body.',
+      'Interpret the category and generate the text in that style or genre.',
       'Adapt vocabulary, sentence length, and complexity to the requested level.',
       'Keep the text engaging and coherent inside the requested category.',
+      'Before answering, verify the text body length and shorten it if needed.',
       'Return valid JSON only with keys: title, text, reflectionQuestion.',
       'The reflectionQuestion must be in Portuguese and help the learner think about the text.',
       'Do not add markdown fences or extra commentary.',
@@ -71,7 +73,7 @@ export const aiService = {
 }
 
 async function callGemini(prompt: string): Promise<string | null> {
-  const apiKey = globalThis.__FLUENTIA_ENV__?.VITE_GEMINI_API_KEY
+  const apiKey = globalThis.__SEM_MICO_ENV__?.VITE_GEMINI_API_KEY
   if (!apiKey) return null
 
   try {
@@ -103,7 +105,7 @@ function extractJson<T>(payload: string): T {
   return JSON.parse(candidate) as T
 }
 
-function normalizeChallengeText(text: string, maxCharacters: number) {
+export function normalizeChallengeText(text: string, maxCharacters: number) {
   const normalized = text.replace(/\s+/g, ' ').trim()
   if (normalized.length <= maxCharacters) return normalized
 
@@ -114,15 +116,35 @@ function normalizeChallengeText(text: string, maxCharacters: number) {
 
 export function buildFallbackChallenge(preferences: StudyPreferences) {
   const library: Record<string, { title: string; text: string; reflectionQuestion: string }> = {
-    News: {
+    Noticias: {
       title: 'A Small Habit With Big Impact',
       text: 'Every morning, Maya reads one short article in English before checking social media. At first, she understood only a few words, but she kept going. After three months, she noticed that news headlines no longer felt intimidating. The daily habit was simple, yet it changed how confident she felt when meeting new vocabulary.',
       reflectionQuestion: 'What small habit helps you learn something consistently?',
     },
-    Poems: {
+    Poema: {
       title: 'Quiet Morning',
       text: 'The window opens to a gentle light. A bird repeats the same song, and the city wakes up slowly. In that calm moment, I remember that learning a language is not a race. It is more like breathing with attention, one phrase at a time.',
       reflectionQuestion: 'Which line creates the strongest image in your mind?',
+    },
+    Conto: {
+      title: 'The Key in the Drawer',
+      text: 'Elena found a small silver key in her grandmother\'s desk. It looked old, but it shone under the afternoon light. She tried it on every box in the house until she opened a tiny wooden chest filled with letters from another country. Each letter told a story about courage, distance, and hope.',
+      reflectionQuestion: 'Como o objeto encontrado muda a curiosidade da personagem?',
+    },
+    Historia: {
+      title: 'A New Student in Town',
+      text: 'When Daniel moved to a new town, everything felt unfamiliar. The streets were quiet, the school was bigger, and even the bus route seemed confusing. On his first day, a classmate named Ruby offered to show him the library. That small act of kindness made the new place feel less strange.',
+      reflectionQuestion: 'Qual gesto faz a historia ficar mais acolhedora?',
+    },
+    'Historias de terror': {
+      title: 'The Light Upstairs',
+      text: 'Mila was alone at home when she noticed a thin line of light under the attic door. The house was silent, and she knew no one else should be there. She climbed the stairs slowly, hearing the wood creak beneath her feet. When she touched the handle, the light suddenly disappeared.',
+      reflectionQuestion: 'Qual detalhe cria mais suspense nesse texto?',
+    },
+    Cronicas: {
+      title: 'The Bus Stop at Seven',
+      text: 'Every morning at seven, the same people gather at the bus stop. A baker wipes flour from his hands, a nurse checks the time, and a teenager finishes the last lines of homework. Nobody speaks much, yet the group shares a quiet rhythm. It feels like a small city ritual before the noise of the day begins.',
+      reflectionQuestion: 'Que aspecto cotidiano faz essa cronica funcionar bem?',
     },
   }
 
@@ -134,7 +156,7 @@ export function buildFallbackChallenge(preferences: StudyPreferences) {
 
   return {
     ...fallback,
-    text: fallback.text.slice(0, preferences.maxCharacters),
+    text: normalizeChallengeText(fallback.text, preferences.maxCharacters),
     mode: 'fallback' as const,
   }
 }

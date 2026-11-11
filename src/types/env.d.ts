@@ -1,6 +1,6 @@
 declare global {
   // eslint-disable-next-line no-var
-  var __FLUENTIA_ENV__:
+  var __SEM_MICO_ENV__:
     | {
         VITE_FIREBASE_API_KEY?: string
         VITE_FIREBASE_AUTH_DOMAIN?: string
@@ -8,6 +8,7 @@ declare global {
         VITE_FIREBASE_STORAGE_BUCKET?: string
         VITE_FIREBASE_MESSAGING_SENDER_ID?: string
         VITE_FIREBASE_APP_ID?: string
+        VITE_FIREBASE_DATABASE_ID?: string
         VITE_GEMINI_API_KEY?: string
       }
     | undefined

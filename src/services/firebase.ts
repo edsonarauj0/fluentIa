@@ -7,7 +7,7 @@ let authCache: ReturnType<typeof getAuth> | null | undefined
 let dbCache: ReturnType<typeof getFirestore> | null | undefined
 
 function getFirebaseConfig() {
-  const env = globalThis.__FLUENTIA_ENV__
+  const env = globalThis.__SEM_MICO_ENV__
 
   const apiKey = env?.VITE_FIREBASE_API_KEY
   const authDomain = env?.VITE_FIREBASE_AUTH_DOMAIN
@@ -47,6 +47,7 @@ export function getFirebaseAuth() {
 export function getFirestoreDb() {
   if (dbCache !== undefined) return dbCache
   const app = getFirebaseApp()
-  dbCache = app ? getFirestore(app) : null
+  const databaseId = globalThis.__SEM_MICO_ENV__?.VITE_FIREBASE_DATABASE_ID || 'default'
+  dbCache = app ? getFirestore(app, databaseId) : null
   return dbCache
 }
